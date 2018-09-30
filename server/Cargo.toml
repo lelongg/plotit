@@ -1,0 +1,20 @@
+[package]
+name = "server"
+version = "0.1.0"
+authors = ["Gérald Lelong <gerald.lelong@easymov.fr>"]
+edition = "2018"
+
+[[bin]]
+name = "noise"
+path = "src/noise.rs"
+
+[dependencies]
+client = { path = "../client"}
+rocket = "0.3.16"
+rocket_codegen = "0.3.16"
+rocket_contrib = "0.3.16"
+websocket = "0.20.2"
+failure = "0.1.2"
+crossbeam = "0.4.1"
+rand = "0.5.5"
+float_duration = "0.3.3"
