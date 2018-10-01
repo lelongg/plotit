@@ -9,7 +9,7 @@ use yew::*;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Model {
-    chart: Option<stdweb::Value>,
+    chart: Option<stdweb::web::Element>,
     x_min: Option<f64>,
     x_max: Option<f64>,
     state: State,
@@ -60,80 +60,42 @@ where
     fn update(&mut self, msg: Self::Message, _: &mut Env<CTX, Self>) -> ShouldRender {
         match msg {
             Msg::Init => {
-                let ctx = document()
+                self.chart = Some(document()
                     .query_selector("#chart")
                     .expect("cannot get chart element")
-                    .expect("cannot unwrap chart element");
-
-                self.chart = Some(js! {
-                    return new Chart(@{ctx}, {
+                    .expect("cannot unwrap chart element"));
+                
+                js! {
+                    var trace = {
                         type: "line",
-                        data: {
-                            datasets: [{
-                                label: "sin(x)",
-                                borderColor: "rgba(255, 0, 0, 1.0)",
-                                data: [],
-                                fill: false,
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            animation: {
-                                duration: 0,
-                            },
-                            hover: {
-                                animationDuration: 0,
-                            },
-                            responsiveAnimationDuration: 0,
-                            title: {
-                                display: true,
-                                text: "Simple example"
-                            },
-                            tooltips: {
-                                mode: "nearest",
-                                intersect: false,
-                                style: {pointerEvents: "none"},
-                            },
-                            hover: {
-                                mode: "nearest",
-                                intersect: false
-                            },
-                            scales: {
-                                xAxes: [{
-                                    type: "linear",
-                                    position: "bottom",
-                                }],
-                                yAxes: [{
-                                    display: true,
-                                    scaleLabel: {
-                                        display: true,
-                                        labelString: "y"
-                                    }
-                                }]
-                            },
-                            pan: {
-                                enabled: true,
-                                mode: "xy"
-                            },
-                            zoom: {
-                                enabled: true,
-                                mode: "xy",
-                                limits: {
-                                    max: 10,
-                                    min: 0.5
-                                }
-                            },
-                            downsample: {
-                                enabled: false,
-                                threshold: 50,
-                                auto: true,
-                                onInit: true,
-                                preferOriginalData: false,
-                                restoreOriginalData: true,
-                            },
+                        // mode: "lines+markers",
+                        x: [],
+                        y: [],
+                        marker: {
+                            color: "#C8A2C8",
+                            line: {
+                                width: 2.5
+                            }
                         }
-                    });
-                });
+                    };
+
+                    var data = [ trace ];
+
+                    var layout = {
+                        title: "Simple example",
+                        font: {size: 18},
+                        dragmode: "pan",
+                        hovermode: "closest",
+                        xaxis: {
+                            rangeslider: {}
+                        },
+                    };
+
+                    Plotly.newPlot(@{&self.chart}, data, layout, {
+                        responsive: true,
+                        displaylogo: false,
+                        scrollZoom: true,});
+                };
 
                 self.state = State::Running;
                 return true;
@@ -145,20 +107,22 @@ where
 
                     if let Some(ref chart) = self.chart {
                         js! {
-                            let chart = @{chart};
-                            chart.data.datasets.forEach((dataset) => {
-                                dataset.data.push({
-                                    x: @{data.stamp},
-                                    y: @{data.value}
-                                });
-                            });
-                            chart.update();
+                            Plotly.extendTraces(
+                                @{chart}, {x: [[@{data.stamp}]], y: [[@{data.value}]]}, [0])
                         }
                     }
                 }
             }
             Msg::Pause => {
                 self.state = State::Paused;
+
+                if let Some(ref chart) = self.chart {
+                    js! {
+                        Plotly.extendTraces(
+                            @{chart}, {x: [[null]], y: [[null]]}, [0])
+                    }
+                }
+
                 return true;
             }
             Msg::Resume => {
@@ -179,9 +143,7 @@ where
         let state = self.state.clone();
 
         html! {
-            <div class="chart-container", style="position: relative; height:90vh; width:90vw",>
-                <canvas id="chart",></canvas>
-            </div>
+            <div id="chart", style="position: relative; height:95vh; width:100%",/>
             <WebSocket<Data>: ondata=|data| Msg::AppendData(data),/>
             <button onclick=|_| {
                 match state {
