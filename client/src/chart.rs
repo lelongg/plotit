@@ -75,7 +75,7 @@ impl Component for Model {
                 );
 
                 js! {
-                    var trace = {
+                    let trace = {
                         type: "line",
                         x: [],
                         y: [],
@@ -87,9 +87,9 @@ impl Component for Model {
                         }
                     };
 
-                    var data = [ trace ];
+                    let data = [ trace ];
 
-                    var layout = {
+                    let layout = {
                         dragmode: "pan",
                         hovermode: "closest",
                         xaxis: {
