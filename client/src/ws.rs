@@ -1,13 +1,19 @@
 use failure::Error;
-use ::serde::de::Deserialize;
-use stdweb::*;
+use serde::de::Deserialize;
 use yew::format::Json;
 use yew::prelude::*;
 use yew::services::websocket::{WebSocketService, WebSocketStatus, WebSocketTask};
 use yew::services::Task;
 use yew::*;
 
-pub struct Model<Data> {
+pub struct Model<Data>
+where
+    Data: Clone + PartialEq + 'static,
+    for<'de> Data: Deserialize<'de>,
+    String: From<Data>,
+{
+    ws_service: WebSocketService,
+    link: ComponentLink<Model<Data>>,
     url: Option<String>,
     ws: Option<WebSocketTask>,
     onconnect: Option<Callback<()>>,
@@ -44,36 +50,41 @@ impl<Data> Default for Props<Data> {
     }
 }
 
-impl<Data> Model<Data> {
-    fn connect<CTX>(&mut self, url: &str, env: &mut Env<CTX, Self>)
-    where
-        CTX: AsMut<WebSocketService> + 'static,
-        Data: Clone + PartialEq + std::convert::TryInto<String> + 'static,
-        for<'de> Data: Deserialize<'de>,
-    {
-        let callback = env.send_back(|Json(data)| Msg::Reception(data));
-        let notification = env.send_back(|status| match status {
+impl<Data> Model<Data>
+where
+    Data: Clone + PartialEq + 'static,
+    for<'de> Data: Deserialize<'de>,
+    String: From<Data>,
+{
+    fn connect(&mut self, url: &str) {
+        let link = &mut self.link;
+        let callback = link.send_back(|Json(data)| Msg::Reception(data));
+        let notification = link.send_back(|status| match status {
             WebSocketStatus::Opened => Msg::Connected,
             WebSocketStatus::Closed | WebSocketStatus::Error => Msg::Lost,
         });
-        let ws_service: &mut WebSocketService = env.as_mut();
-        let task = ws_service.connect(url, callback, notification);
+        let task = self.ws_service.connect(url, callback, notification);
         self.url = Some(url.to_owned());
         self.ws = Some(task);
     }
 }
 
-impl<CTX, Data> Component<CTX> for Model<Data>
+impl<Data> Component for Model<Data>
 where
-    CTX: AsMut<WebSocketService> + 'static,
     Data: Clone + PartialEq + std::convert::TryInto<String> + 'static,
     for<'de> Data: Deserialize<'de>,
+    String: From<Data>,
 {
     type Message = Msg<Data>;
     type Properties = Props<Data>;
 
-    fn create(props: Self::Properties, env: &mut Env<CTX, Self>) -> Self {
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self
+    where
+        std::string::String: std::convert::From<Data>,
+    {
         let mut model = Model {
+            ws_service: WebSocketService::new(),
+            link,
             url: None,
             ws: None,
             onconnect: props.onconnect,
@@ -81,21 +92,24 @@ where
             ondata: props.ondata,
         };
 
-        model.connect(&props.url, env);
-
+        model.connect(&props.url);
+        
         model
     }
 
-    fn change(&mut self, props: Self::Properties, env: &mut Env<CTX, Self>) -> ShouldRender {
+    fn change(&mut self, props: Self::Properties) -> ShouldRender
+    where
+        std::string::String: std::convert::From<Data>,
+    {
         if let Some(ref url) = self.url {
             if *url != *props.url {
-                self.connect(&props.url, env);
+                self.connect(&props.url);
             }
         }
         false
     }
 
-    fn update(&mut self, msg: Self::Message, _: &mut Env<CTX, Self>) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::Emission(data) => {
                 let data: Option<String> = data.try_into().ok();
@@ -124,13 +138,13 @@ where
     }
 }
 
-impl<CTX, Data> Renderable<CTX, Model<Data>> for Model<Data>
+impl<Data> Renderable<Model<Data>> for Model<Data>
 where
-    CTX: AsMut<WebSocketService> + 'static,
     Data: Clone + PartialEq + std::convert::TryInto<String> + 'static,
     for<'de> Data: Deserialize<'de>,
+    String: From<Data>,
 {
-    fn view(&self) -> Html<CTX, Self> {
+    fn view(&self) -> Html<Self> {
         html! {
             <div/>
         }

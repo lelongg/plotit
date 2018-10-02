@@ -1,35 +1,32 @@
 #![feature(plugin)]
 #![feature(try_from)]
+#![feature(decl_macro)]
+#![feature(proc_macro_non_items)]
 #![plugin(rocket_codegen)]
 
 use client::data::Data;
 use crossbeam::{channel, select, Receiver, Sender};
 use failure::Error;
 use float_duration::FloatDuration;
-use rocket::response::NamedFile;
 use std::convert::TryInto;
 use std::io::{self, BufRead};
-use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::SystemTime;
 use websocket::sync::Server;
 use websocket::OwnedMessage;
+use rust_embed::RustEmbed;
+use rocket::*;
+use std::path::PathBuf;
+use std::ffi::OsStr;
+use std::io::Cursor;
+use rocket::response;
+use rocket::http::{ContentType, Status};
+
+#[derive(RustEmbed)]
+#[folder = "./target/deploy/"]
+struct Asset;
 
 type Result<T> = std::result::Result<T, Error>;
-
-#[get("/")]
-fn index() -> io::Result<NamedFile> {
-    NamedFile::open("./target/deploy/index.html")
-}
-
-#[get("/<file..>")]
-fn files(file: PathBuf) -> Option<NamedFile> {
-    NamedFile::open(Path::new("./target/deploy/").join(file)).ok()
-}
-
-fn rocket() -> rocket::Rocket {
-    rocket::ignite().mount("/", routes![index, files])
-}
 
 fn ws(input_rx: Receiver<String>, output_tx: Sender<String>) {
     let ws_host = "127.0.0.1:9001";
@@ -100,6 +97,44 @@ fn ws(input_rx: Receiver<String>, output_tx: Sender<String>) {
             });
         }
     });
+}
+
+
+#[get("/")]
+fn index<'r>() -> response::Result<'r> {
+  Asset::get("index.html").map_or_else(
+    || Err(Status::NotFound),
+    |d| {
+      response::Response::build()
+        .header(ContentType::HTML)
+        .sized_body(Cursor::new(d))
+        .ok()
+    },
+  )
+}
+
+#[get("/<file..>")]
+fn dist<'r>(file: PathBuf) -> response::Result<'r> {
+  let filename = file.display().to_string();
+  let ext = file
+    .as_path()
+    .extension()
+    .and_then(OsStr::to_str)
+    .expect("Could not get file extension");
+  let content_type = ContentType::from_extension(ext).expect("Could not get file content type");
+  Asset::get(&filename.clone()).map_or_else(
+    || Err(Status::NotFound),
+    |d| {
+      response::Response::build()
+        .header(content_type)
+        .sized_body(Cursor::new(d))
+        .ok()
+    },
+  )
+}
+
+fn rocket() -> rocket::Rocket {
+  rocket::ignite().mount("/", routes![index, dist])
 }
 
 fn main() -> Result<()> {

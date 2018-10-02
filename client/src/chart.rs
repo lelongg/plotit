@@ -1,18 +1,23 @@
 use crate::data::Data;
 use crate::ws::Model as WebSocket;
+use crossbeam::{channel, Receiver, Sender};
+use std::time::Duration;
 use stdweb::traits::*;
 use stdweb::web::document;
 use stdweb::*;
 use yew::prelude::*;
-use yew::services::websocket::WebSocketService;
+use yew::services::interval::IntervalService;
+use yew::services::Task;
 use yew::*;
 
-#[derive(Debug, PartialEq, Clone)]
 pub struct Model {
     chart: Option<stdweb::web::Element>,
     x_min: Option<f64>,
     x_max: Option<f64>,
+    data_tx: Sender<Data>,
+    data_rx: Receiver<Data>,
     state: State,
+    _standalone: Option<Box<Task>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -41,34 +46,37 @@ impl Default for Props {
     }
 }
 
-impl<CTX> Component<CTX> for Model
-where
-    CTX: AsMut<WebSocketService> + 'static,
-{
+impl Component for Model {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(_: Self::Properties, _: &mut Env<CTX, Self>) -> Self {
+    fn create(_: Self::Properties, _: ComponentLink<Self>) -> Self {
+        let (data_tx, data_rx) = channel::unbounded();
+
         Model {
             chart: None,
             x_min: None,
             x_max: None,
+            data_tx,
+            data_rx,
             state: State::Stopped,
+            _standalone: None,
         }
     }
 
-    fn update(&mut self, msg: Self::Message, _: &mut Env<CTX, Self>) -> ShouldRender {
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::Init => {
-                self.chart = Some(document()
-                    .query_selector("#chart")
-                    .expect("cannot get chart element")
-                    .expect("cannot unwrap chart element"));
-                
+                self.chart = Some(
+                    document()
+                        .query_selector("#chart")
+                        .expect("cannot get chart element")
+                        .expect("cannot unwrap chart element"),
+                );
+
                 js! {
                     var trace = {
                         type: "line",
-                        // mode: "lines+markers",
                         x: [],
                         y: [],
                         marker: {
@@ -82,8 +90,6 @@ where
                     var data = [ trace ];
 
                     var layout = {
-                        title: "Simple example",
-                        font: {size: 18},
                         dragmode: "pan",
                         hovermode: "closest",
                         xaxis: {
@@ -94,8 +100,40 @@ where
                     Plotly.newPlot(@{&self.chart}, data, layout, {
                         responsive: true,
                         displaylogo: false,
-                        scrollZoom: true,});
+                        scrollZoom: true,
+                    });
                 };
+
+                let chart = self.chart.clone();
+                let data_rx = self.data_rx.clone();
+
+                let callback = move |_| {
+                    let length = data_rx.len();
+                    let mut x = Vec::with_capacity(length);
+                    let mut y = Vec::with_capacity(length);
+                    for _ in 0..length {
+                        if let Some(data) = data_rx.recv() {
+                            x.push(data.stamp);
+                            y.push(data.value);
+                        }
+                    }
+
+                    if x.len() == 0 {
+                        return;
+                    };
+
+                    if let Some(ref chart) = chart {
+                        js! {
+                            Plotly.extendTraces(
+                                @{chart}, {x: [@{x}], y: [@{y}]}, [0])
+                        }
+                    }
+                };
+
+                let mut interval = IntervalService::new();
+                self._standalone = Some(Box::new(
+                    interval.spawn(Duration::from_millis(100), callback.into()),
+                ));
 
                 self.state = State::Running;
                 return true;
@@ -104,13 +142,7 @@ where
                 if self.state == State::Running {
                     self.x_min = Some(self.x_min.map_or(data.stamp, |v| v.min(data.stamp)));
                     self.x_max = Some(self.x_max.map_or(data.stamp, |v| v.max(data.stamp)));
-
-                    if let Some(ref chart) = self.chart {
-                        js! {
-                            Plotly.extendTraces(
-                                @{chart}, {x: [[@{data.stamp}]], y: [[@{data.value}]]}, [0])
-                        }
-                    }
+                    self.data_tx.send(data);
                 }
             }
             Msg::Pause => {
@@ -135,29 +167,30 @@ where
     }
 }
 
-impl<CTX> Renderable<CTX, Model> for Model
-where
-    CTX: AsMut<WebSocketService> + 'static,
-{
-    fn view(&self) -> Html<CTX, Self> {
+impl Renderable<Model> for Model {
+    fn view(&self) -> Html<Self> {
         let state = self.state.clone();
+        let icon_class = match self.state {
+            State::Paused => "zmdi zmdi-play",
+            State::Running => "zmdi zmdi-pause",
+            _ => "zmdi zmdi-pause",
+        };
 
         html! {
-            <div id="chart", style="position: relative; height:95vh; width:100%",/>
+            <div id="chart", style="position: relative; height:100vh; width:100%",/>
             <WebSocket<Data>: ondata=|data| Msg::AppendData(data),/>
-            <button onclick=|_| {
-                match state {
-                    State::Paused => Msg::Resume,
-                    State::Running => Msg::Pause,
-                    _ => Msg::Pause,
-                }
-            },>{
-                match self.state {
-                    State::Paused => "Resume",
-                    State::Running => "Pause",
-                    _ => "Pause",
-                }
-            }</button>
+            <button
+                class="fab fab--material",
+                style="position: absolute; right: 1rem; bottom: 1rem; cursor: pointer;",
+                onclick=|_| {
+                    match state {
+                        State::Paused => Msg::Resume,
+                        State::Running => Msg::Pause,
+                        _ => Msg::Pause,
+                    }
+                },>
+                <i class={icon_class},></i>
+            </button>
         }
     }
 }
