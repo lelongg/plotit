@@ -8,19 +8,18 @@ use client::data::Data;
 use crossbeam::{channel, select, Receiver, Sender};
 use failure::Error;
 use float_duration::FloatDuration;
-use std::convert::TryInto;
+use rocket::http::{ContentType, Status};
+use rocket::response;
+use rocket::*;
+use rust_embed::RustEmbed;
+use std::ffi::OsStr;
+use std::io::Cursor;
 use std::io::{self, BufRead};
+use std::path::PathBuf;
 use std::thread;
 use std::time::SystemTime;
 use websocket::sync::Server;
 use websocket::OwnedMessage;
-use rust_embed::RustEmbed;
-use rocket::*;
-use std::path::PathBuf;
-use std::ffi::OsStr;
-use std::io::Cursor;
-use rocket::response;
-use rocket::http::{ContentType, Status};
 
 #[derive(RustEmbed)]
 #[folder = "./target/deploy/"]
@@ -28,10 +27,13 @@ struct Asset;
 
 type Result<T> = std::result::Result<T, Error>;
 
+// fn parse_data(input: &str) -> Data {
+
+// }
+
 fn ws(input_rx: Receiver<String>, output_tx: Sender<String>) {
     let ws_host = "127.0.0.1:9001";
     let server = Server::bind(ws_host).expect(&format!("Could not bind to {}", ws_host));
-    let start_time = SystemTime::now();
 
     println!("websocket server on {}", ws_host);
 
@@ -57,14 +59,8 @@ fn ws(input_rx: Receiver<String>, output_tx: Sender<String>) {
                 thread::spawn(move || loop {
                     select! {
                         recv(input_rx, data) => {
-                            if let (Ok(stamp), Some(value)) = (start_time.elapsed(), data) {
-                                if let Ok(data) = (
-                                    Data {
-                                        stamp: FloatDuration::from_std(stamp).as_seconds(),
-                                        value
-                                    }).try_into() {
-                                    ws_sender.send_message(&OwnedMessage::Text(data)).ok();
-                                }
+                            if let Some(data) = data {
+                                ws_sender.send_message(&OwnedMessage::Text(data)).ok();
                             }
                         }
                         recv(internal_rx, message) => {
@@ -99,45 +95,45 @@ fn ws(input_rx: Receiver<String>, output_tx: Sender<String>) {
     });
 }
 
-
 #[get("/")]
 fn index<'r>() -> response::Result<'r> {
-  Asset::get("index.html").map_or_else(
-    || Err(Status::NotFound),
-    |d| {
-      response::Response::build()
-        .header(ContentType::HTML)
-        .sized_body(Cursor::new(d))
-        .ok()
-    },
-  )
+    Asset::get("index.html").map_or_else(
+        || Err(Status::NotFound),
+        |d| {
+            response::Response::build()
+                .header(ContentType::HTML)
+                .sized_body(Cursor::new(d))
+                .ok()
+        },
+    )
 }
 
 #[get("/<file..>")]
 fn dist<'r>(file: PathBuf) -> response::Result<'r> {
-  let filename = file.display().to_string();
-  let ext = file
-    .as_path()
-    .extension()
-    .and_then(OsStr::to_str)
-    .expect("Could not get file extension");
-  let content_type = ContentType::from_extension(ext).expect("Could not get file content type");
-  Asset::get(&filename.clone()).map_or_else(
-    || Err(Status::NotFound),
-    |d| {
-      response::Response::build()
-        .header(content_type)
-        .sized_body(Cursor::new(d))
-        .ok()
-    },
-  )
+    let filename = file.display().to_string();
+    let ext = file
+        .as_path()
+        .extension()
+        .and_then(OsStr::to_str)
+        .expect("Could not get file extension");
+    let content_type = ContentType::from_extension(ext).expect("Could not get file content type");
+    Asset::get(&filename.clone()).map_or_else(
+        || Err(Status::NotFound),
+        |d| {
+            response::Response::build()
+                .header(content_type)
+                .sized_body(Cursor::new(d))
+                .ok()
+        },
+    )
 }
 
 fn rocket() -> rocket::Rocket {
-  rocket::ignite().mount("/", routes![index, dist])
+    rocket::ignite().mount("/", routes![index, dist])
 }
 
 fn main() -> Result<()> {
+    let start_time = SystemTime::now();
     let (input_tx, input_rx) = channel::bounded(5);
     let (output_tx, _) = channel::bounded(1);
 
@@ -148,14 +144,27 @@ fn main() -> Result<()> {
     ws(input_rx.clone(), output_tx.clone());
 
     let stdin = io::stdin();
-    let mut handle = stdin.lock();
-    loop {
-        let mut input = String::new();
-        match handle.read_line(&mut input) {
-            Ok(_) => {
-                input_tx.send(input.trim_right().to_owned());
-            }
-            Err(error) => println!("error: {}", error),
-        }
+    let handle = stdin.lock();
+
+    let mut reader = csv::ReaderBuilder::new()
+        .has_headers(false)
+        .trim(csv::Trim::All)
+        .from_reader(handle);
+
+    for result in reader.records() {
+        let stamp = start_time.elapsed()?;
+        let stamp = FloatDuration::from_std(stamp).as_seconds();
+
+        input_tx.send(
+            Data {
+                stamp,
+                values: result?
+                    .iter()
+                    .map(|field| field.parse().unwrap(),
+                    ).collect::<Vec<_>>(),
+            }.into(),
+        );
     }
+
+    Ok(())
 }

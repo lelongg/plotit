@@ -4,7 +4,6 @@ use crossbeam::{channel, Receiver, Sender};
 use std::time::Duration;
 use stdweb::traits::*;
 use stdweb::web::document;
-use stdweb::*;
 use yew::prelude::*;
 use yew::services::interval::IntervalService;
 use yew::services::Task;
@@ -12,8 +11,6 @@ use yew::*;
 
 pub struct Model {
     chart: Option<stdweb::web::Element>,
-    x_min: Option<f64>,
-    x_max: Option<f64>,
     data_tx: Sender<Data>,
     data_rx: Receiver<Data>,
     state: State,
@@ -46,6 +43,69 @@ impl Default for Props {
     }
 }
 
+#[allow(dead_code)]
+mod plotly {
+    use stdweb::*;
+
+    struct Plotly {
+        chart: web::Element,
+    }
+
+    pub fn new_trace(x: &Vec<f64>, y: &Vec<f64>) -> Value {
+        return js! {
+            return {
+                type: "scattergl",
+                x: @{x},
+                y: @{y},
+            }
+        };
+    }
+
+    pub fn add_traces(chart: &web::Element, traces: &Vec<Value>) {
+        js! {
+            Plotly.addTraces(@{chart}, @{traces});
+        };
+    }
+
+    pub fn add_new_trace(chart: &web::Element) {
+        js! {
+            Plotly.addTraces(@{chart}, [@{new_trace(&Vec::new(), &Vec::new())}]);
+        };
+    }
+
+    pub fn new_plot(chart: &web::Element) {
+        js! {
+            let layout = @{new_layout()};
+
+            Plotly.newPlot(@{chart}, [], layout, {
+                responsive: true,
+                displaylogo: false,
+                scrollZoom: true,
+            });
+        };
+    }
+
+    pub fn new_layout() -> Value {
+        return js! {
+            return {
+                dragmode: "pan",
+                hovermode: "closest",
+                xaxis: {
+                    rangeslider: {}
+                },
+            };
+        };
+    }
+
+    pub fn extend_traces(chart: &web::Element, x: &Vec<Vec<f64>>, y: &Vec<Vec<f64>>) {
+        let index_array: Vec<u32> = (0..x.len() as u32).collect();
+
+        js! {
+            Plotly.extendTraces(@{chart}, {x: @{x}, y: @{y}}, @{index_array});
+        }
+    }
+}
+
 impl Component for Model {
     type Message = Msg;
     type Properties = Props;
@@ -55,8 +115,6 @@ impl Component for Model {
 
         Model {
             chart: None,
-            x_min: None,
-            x_max: None,
             data_tx,
             data_rx,
             state: State::Stopped,
@@ -74,47 +132,24 @@ impl Component for Model {
                         .expect("cannot unwrap chart element"),
                 );
 
-                js! {
-                    let trace = {
-                        type: "line",
-                        x: [],
-                        y: [],
-                        marker: {
-                            color: "#C8A2C8",
-                            line: {
-                                width: 2.5
-                            }
-                        }
-                    };
-
-                    let data = [ trace ];
-
-                    let layout = {
-                        dragmode: "pan",
-                        hovermode: "closest",
-                        xaxis: {
-                            rangeslider: {}
-                        },
-                    };
-
-                    Plotly.newPlot(@{&self.chart}, data, layout, {
-                        responsive: true,
-                        displaylogo: false,
-                        scrollZoom: true,
-                    });
-                };
+                self.chart.as_ref().map(|chart| plotly::new_plot(chart));
 
                 let chart = self.chart.clone();
                 let data_rx = self.data_rx.clone();
 
                 let callback = move |_| {
                     let length = data_rx.len();
-                    let mut x = Vec::with_capacity(length);
-                    let mut y = Vec::with_capacity(length);
+                    let mut x = vec![Vec::with_capacity(length); 1];
+                    let mut y = vec![Vec::with_capacity(length); 1];
+                    let trace_count = x.len();
                     for _ in 0..length {
                         if let Some(data) = data_rx.recv() {
-                            x.push(data.stamp);
-                            y.push(data.value);
+                            x.resize(x.len().max(data.values.len()), Vec::new());
+                            y.resize(y.len().max(data.values.len()), Vec::new());
+                            for (index, value) in data.values.iter().enumerate() {
+                                x[index].push(data.stamp);
+                                y[index].push(value.clone());
+                            }
                         }
                     }
 
@@ -123,10 +158,11 @@ impl Component for Model {
                     };
 
                     if let Some(ref chart) = chart {
-                        js! {
-                            Plotly.extendTraces(
-                                @{chart}, {x: [@{x}], y: [@{y}]}, [0])
+                        let trace_to_add = x.len() - trace_count;
+                        for _ in 0..trace_to_add {
+                            plotly::add_new_trace(chart);
                         }
+                        plotly::extend_traces(chart, &x, &y);
                     }
                 };
 
@@ -140,8 +176,6 @@ impl Component for Model {
             }
             Msg::AppendData(data) => {
                 if self.state == State::Running {
-                    self.x_min = Some(self.x_min.map_or(data.stamp, |v| v.min(data.stamp)));
-                    self.x_max = Some(self.x_max.map_or(data.stamp, |v| v.max(data.stamp)));
                     self.data_tx.send(data);
                 }
             }
@@ -149,10 +183,7 @@ impl Component for Model {
                 self.state = State::Paused;
 
                 if let Some(ref chart) = self.chart {
-                    js! {
-                        Plotly.extendTraces(
-                            @{chart}, {x: [[null]], y: [[null]]}, [0])
-                    }
+                    plotly::extend_traces(chart, &Vec::new(), &Vec::new());
                 }
 
                 return true;

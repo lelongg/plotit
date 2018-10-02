@@ -1,5 +1,7 @@
-run: client server
+run:build
 	./target/debug/noise | ./target/debug/server
+
+build: client server
 
 client:
 	(cd client && cargo web deploy)
@@ -7,4 +9,4 @@ client:
 server:
 	(cd server && cargo build)
 
-.PHONY: run client server
+.PHONY: run build client server

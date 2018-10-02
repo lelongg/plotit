@@ -4,7 +4,7 @@ use serde_json;
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Data {
     pub stamp: f64,
-    pub value: String,
+    pub values: Vec<f64>,
 }
 
 impl From<Data> for String {

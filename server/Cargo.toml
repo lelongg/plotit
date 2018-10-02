@@ -8,6 +8,10 @@ edition = "2018"
 name = "noise"
 path = "src/noise.rs"
 
+[[bin]]
+name = "test_csv"
+path = "src/test.rs"
+
 [dependencies]
 client = { path = "../client"}
 rocket = { git = "https://github.com/SergioBenitez/Rocket.git" }
@@ -19,3 +23,4 @@ crossbeam = "0.4.1"
 rand = "0.5.5"
 float_duration = "0.3.3"
 rust-embed = "3.0.2"
+csv = "1.0.2"
