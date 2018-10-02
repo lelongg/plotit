@@ -161,7 +161,10 @@ impl Component for Model {
                 self.state = State::Running;
                 return true;
             }
-            Msg::Stop => (),
+            Msg::Stop => {
+                self.state = State::Stopped;
+                return true;
+            }
         }
         false
     }
@@ -172,20 +175,21 @@ impl Renderable<Model> for Model {
         let state = self.state.clone();
         let icon_class = match self.state {
             State::Paused => "zmdi zmdi-play",
-            State::Running => "zmdi zmdi-pause",
             _ => "zmdi zmdi-pause",
         };
 
         html! {
             <div id="chart", style="position: relative; height:100vh; width:100%",/>
-            <WebSocket<Data>: ondata=|data| Msg::AppendData(data),/>
+            <WebSocket<Data>:
+                ondata=|data| Msg::AppendData(data),
+                ondisconnect=|_| Msg::Stop,/>
             <button
                 class="fab fab--material",
                 style="position: absolute; right: 1rem; bottom: 1rem; cursor: pointer;",
+                disabled={state == State::Stopped},
                 onclick=|_| {
                     match state {
                         State::Paused => Msg::Resume,
-                        State::Running => Msg::Pause,
                         _ => Msg::Pause,
                     }
                 },>
