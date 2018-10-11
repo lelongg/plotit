@@ -160,8 +160,8 @@ fn main() -> Result<()> {
                 stamp,
                 values: result?
                     .iter()
-                    .map(|field| field.parse().unwrap(),
-                    ).collect::<Vec<_>>(),
+                    .map(|field| field.parse().unwrap())
+                    .collect::<Vec<_>>(),
             }.into(),
         );
     }
