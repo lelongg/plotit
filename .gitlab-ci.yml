@@ -11,6 +11,7 @@ variables:
 test:
   stage: test
   script:
+    - make client
     - rustc --version
     - cargo --version
     - cargo test --verbose
