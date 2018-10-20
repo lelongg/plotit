@@ -10,7 +10,7 @@ Plotit consumes standard input formatted as CSV and will build a trace for each 
 Plotit open a new tab in your browser in which a [plotly](https://plot.ly/) graph is continuously updated.
 
 This is **experimental** software.
-It was made as an experiment to build a self contained client and server communicating through websocket fully in Rust.
+It was made as an experiment to build a standalone wasm client and web server communicating through websocket, both fully written in Rust.
 
 The port *9001* is used internally for the websocket and the port *8000* is used for the [rocket](https://rocket.rs/) server.
 These ports cannot be changed at this time.
