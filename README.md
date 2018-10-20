@@ -1,5 +1,7 @@
 # Plotit
 
+This project is maintained on [gitlab](https://gitlab.com/lelongg/plotit).
+
 ## Overview
 
 Plotit allows live visualization of multiple time series read from terminal.
