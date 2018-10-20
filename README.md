@@ -15,6 +15,24 @@ It was made as an experiment to build a standalone wasm client and web server co
 The port *9001* is used internally for the websocket and the port *8000* is used for the [rocket](https://rocket.rs/) server.
 These ports cannot be changed at this time.
 
+## Prerequisites
+
+This project depends on Rust **nightly**.
+You can install the `nightly` toolchain and override your Rust toolchain for this project by running the following commands while inside this repository.
+
+```bash
+rustup toolchain install nightly
+rustup override set nightly
+```
+
+Building client requires `cargo web` and `wasm` target.
+You can install it with the following commands.
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install cargo-web
+```
+
 ## Quickstart
 
 This repository comes with a Makefile allowing to build and run Plotit easily.  

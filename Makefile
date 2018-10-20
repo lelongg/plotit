@@ -6,7 +6,7 @@ build: client server
 client:
 	(cd client && cargo web deploy --release)
 
-server:
+server: client
 	(cd server && cargo build --release)
 
 .PHONY: run build client server
