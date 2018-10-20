@@ -11,7 +11,7 @@ variables:
 test:
   stage: test
   before_script:
-    - cargo install cargo-web
+    - cargo install cargo-web || echo "cargo web might be already installed"
   script:
     - make client
     - rustc --version
@@ -33,7 +33,7 @@ pages:
 build:
   stage: build
   before_script:
-    - cargo install cargo-web
+    - cargo install cargo-web || echo "cargo web might be already installed"
   script:
     - make build
     - mv target/release/plotit .
