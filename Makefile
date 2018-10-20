@@ -1,4 +1,4 @@
-run:build
+run: build
 	./target/release/noise | ./target/release/plotit
 
 build: client server
