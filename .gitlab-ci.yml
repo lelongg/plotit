@@ -27,6 +27,15 @@ pages:
   only:
     - master
 
+build:
+  stage: build
+  script:
+    - make build
+    - mv target/release/plotit .
+  artifacts:
+    paths:
+    - plotit
+
 cache:
   paths:
     - cargo/
