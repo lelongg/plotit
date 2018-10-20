@@ -37,9 +37,11 @@ build:
   script:
     - make build
     - mv target/release/plotit .
+    - mv target/release/noise .
   artifacts:
     paths:
     - plotit
+    - noise
 
 cache:
   paths:

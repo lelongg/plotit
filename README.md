@@ -35,14 +35,18 @@ cargo install cargo-web
 
 ## Quickstart
 
-This repository comes with a Makefile allowing to build and run Plotit easily.  
-Type `make` and go take a look at your browser.
-A new tab should display live plotting of sine waves.
+You can download prebuilt binaries at [this address](https://gitlab.com/lelongg/plotit/-/jobs/artifacts/master/download?job=build).
+Decompress the archive and run the following command.
+
+```bash
+./noise | ./plotit
+```
+
+A new tab should display live plotting of sine waves. Go take a look at your browser !
 
 ![screenshot](screenshot.png)
 
-This example is using `noise` program output as an input for plotit.
-The `noise` program is built by this repository and continuously output sine waves samples to standard output.
+The `noise` binary is an example program which continuously output sine waves samples to standard output.
 
 ```
 0.7173560908995227, 0.6967067093471655
@@ -52,6 +56,11 @@ The `noise` program is built by this repository and continuously output sine wav
 0.9320390859672263, 0.3623577544766736
 0.963558185417193, 0.26749882862458735
 ```
+
+## Build
+
+This repository comes with a Makefile allowing to build and run Plotit easily.  
+Type `make build` to compile Plotit.
 
 ## Usage
 
