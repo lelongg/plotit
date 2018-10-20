@@ -1,7 +1,6 @@
 #![feature(plugin)]
 #![feature(try_from)]
 #![feature(decl_macro)]
-#![feature(proc_macro_non_items)]
 #![plugin(rocket_codegen)]
 
 use client::data::Data;
@@ -10,26 +9,22 @@ use failure::Error;
 use float_duration::FloatDuration;
 use rocket::http::{ContentType, Status};
 use rocket::response;
-use rocket::*;
 use rust_embed::RustEmbed;
 use std::ffi::OsStr;
 use std::io::Cursor;
-use std::io::{self, BufRead};
+use std::io;
 use std::path::PathBuf;
 use std::thread;
 use std::time::SystemTime;
 use websocket::sync::Server;
 use websocket::OwnedMessage;
+use open;
 
 #[derive(RustEmbed)]
 #[folder = "./target/deploy/"]
 struct Asset;
 
 type Result<T> = std::result::Result<T, Error>;
-
-// fn parse_data(input: &str) -> Data {
-
-// }
 
 fn ws(input_rx: Receiver<String>, output_tx: Sender<String>) {
     let ws_host = "127.0.0.1:9001";
@@ -140,6 +135,10 @@ fn main() -> Result<()> {
     thread::spawn(move || {
         rocket().launch();
     });
+
+    if open::that("http://localhost:8000").is_ok() {
+        println!("Look at your browser !");
+    }
 
     ws(input_rx.clone(), output_tx.clone());
 

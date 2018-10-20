@@ -42,7 +42,7 @@ pub struct Props<Data> {
 impl<Data> Default for Props<Data> {
     fn default() -> Self {
         Props {
-            url: "ws://127.0.0.1:9001/".to_string(),
+            url: "".to_string(),
             onconnect: None,
             ondisconnect: None,
             ondata: None,
@@ -93,7 +93,7 @@ where
         };
 
         model.connect(&props.url);
-        
+
         model
     }
 

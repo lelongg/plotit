@@ -43,13 +43,8 @@ impl Default for Props {
     }
 }
 
-#[allow(dead_code)]
 mod plotly {
     use stdweb::*;
-
-    struct Plotly {
-        chart: web::Element,
-    }
 
     pub fn new_trace(x: &Vec<f64>, y: &Vec<f64>) -> Value {
         return js! {
@@ -58,12 +53,6 @@ mod plotly {
                 x: @{x},
                 y: @{y},
             }
-        };
-    }
-
-    pub fn add_traces(chart: &web::Element, traces: &Vec<Value>) {
-        js! {
-            Plotly.addTraces(@{chart}, @{traces});
         };
     }
 
@@ -212,6 +201,7 @@ impl Renderable<Model> for Model {
         html! {
             <div id="chart", style="position: relative; height:100vh; width:100%",/>
             <WebSocket<Data>:
+                url="ws://127.0.0.1:9001",
                 ondata=|data| Msg::AppendData(data),
                 ondisconnect=|_| Msg::Stop,/>
             <button
