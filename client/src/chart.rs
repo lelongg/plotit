@@ -80,8 +80,13 @@ mod plotly {
                 dragmode: "pan",
                 hovermode: "closest",
                 xaxis: {
-                    rangeslider: {}
+                    rangeslider: {
+                        visible: false,
+                    },
                 },
+                yaxis: {
+                    fixedrange: false,
+                }
             };
         };
     }
@@ -92,6 +97,12 @@ mod plotly {
         js! {
             Plotly.extendTraces(@{chart}, {x: @{x}, y: @{y}}, @{index_array});
         }
+    }
+
+    pub fn data_length(chart: &web::Element) -> usize {
+        use stdweb::unstable::TryInto;
+        let value = js! { return @{chart}.data.length };
+        value.try_into().unwrap()
     }
 }
 
@@ -114,23 +125,20 @@ impl Component for Model {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::Init => {
-                self.chart = Some(
-                    document()
-                        .query_selector("#chart")
-                        .expect("cannot get chart element")
-                        .expect("cannot unwrap chart element"),
-                );
+                let chart = document()
+                    .query_selector("#chart")
+                    .expect("cannot get chart element")
+                    .expect("cannot unwrap chart element");
 
-                self.chart.as_ref().map(|chart| plotly::new_plot(chart));
-
-                let chart = self.chart.clone();
+                self.chart = Some(chart.clone());
                 let data_rx = self.data_rx.clone();
+
+                plotly::new_plot(&chart);
 
                 let callback = move |_| {
                     let length = data_rx.len();
                     let mut x = vec![Vec::with_capacity(length); 1];
                     let mut y = vec![Vec::with_capacity(length); 1];
-                    let trace_count = x.len();
                     for _ in 0..length {
                         if let Some(data) = data_rx.recv() {
                             x.resize(x.len().max(data.values.len()), Vec::new());
@@ -146,13 +154,12 @@ impl Component for Model {
                         return;
                     };
 
-                    if let Some(ref chart) = chart {
-                        let trace_to_add = x.len() - trace_count;
-                        for _ in 0..trace_to_add {
-                            plotly::add_new_trace(chart);
-                        }
-                        plotly::extend_traces(chart, &x, &y);
+                    let trace_count = plotly::data_length(&chart);
+                    let trace_to_add = x.len().saturating_sub(trace_count);
+                    for _ in 0..trace_to_add {
+                        plotly::add_new_trace(&chart);
                     }
+                    plotly::extend_traces(&chart, &x, &y);
                 };
 
                 let mut interval = IntervalService::new();

@@ -1,3 +1,5 @@
+<img align="left" width="64px" src="plotit.png" />
+
 # Plotit
 
 This project is maintained on [gitlab](https://gitlab.com/lelongg/plotit).
