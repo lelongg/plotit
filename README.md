@@ -1,4 +1,4 @@
-<img align="left" width="128px" src="plotit.png" />
+<p align="center"><img width="400" src="plotit.png" alt="Plotit logo"></a></p>
 
 # Plotit
 
